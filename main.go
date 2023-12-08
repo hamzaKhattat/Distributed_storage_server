@@ -1,0 +1,4 @@
+package go
+import (
+	"log"
+	)
