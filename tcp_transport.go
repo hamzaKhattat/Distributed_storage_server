@@ -19,8 +19,14 @@ type server struct{
 	TcpTransportOpts
 	
 	listener	net.Listener
+	rpcch 		chan RPC	
 	mu	sync.Mutex
 	Peer	map[net.Addr]Peer
+}
+//Consume implements the Transport interface, which will return the channel 
+//To read RPCs received from other peer
+func (s *server) Consume() <- chan RPC{
+	return rpcch
 }
 //Tcp Transport options
 
@@ -29,6 +35,7 @@ type TcpTransportOpts struct{
 	
 	shakehands	HandshakeFunc 
 	decoder		Decode
+	OnPeer	func(Peer) error
 	
 }
 func (s *server) NewServer(addr string,opts TcpTransportOpts) *server{
@@ -36,9 +43,13 @@ func (s *server) NewServer(addr string,opts TcpTransportOpts) *server{
 		TcpTransportOpts: opts,	
 //		shakehands: func(any) error {return nil},
 		listenAddr: addr,	
+		rpcch: make(chan RPC),
 }
 }
-
+//Close implements the Peer interface
+func (p *TCPPeer) Close() error{
+	return p.conn.Close
+}
 func ListenAndAccept(){
 	s.Listener,err:=net.Listener("tcp",s.ListenAddr)
 	if err!=nil{
@@ -64,9 +75,20 @@ func (s *server) Handler(accept net.Conn){
 	}
 	var lencodeError int = 0
 	//Read Loop
-	msg:=&Temp()
+	rpc:=RPC{}
+	defer func(){
+		var err error
+		fmt.Println("Dropping peer Connection %s",err)
+		accept.Close()
+	}()
+	if s.OnPeer != nil{
+		if err:=s.OnPeer(peer);err!=nil {
+			return
+		}
+	}
+
 	for{
-	if err:=s.decoder.Decode(conn,msg);err!=nil{
+	if err:=s.decoder.Decode(conn,&rpc);err!=nil{
 	lencodeError++
 	fmt.Printf("TCP error : %s\n",err)
 	if(lencodeError==5){
@@ -74,5 +96,7 @@ func (s *server) Handler(accept net.Conn){
 	
 	}
 	}
-	fmt.Println("Hello world!")
+	rpc.From=accept.RemoteAddr()
+	s.rpcch<- rpc
+	fmt.Println("RPC:",rpc)
 }

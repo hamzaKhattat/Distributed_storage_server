@@ -1,6 +1,11 @@
 package p2p
 
-type transport struct{}
+type transport interface{
+	ListenAndAccept() error
+}
 
 
-type Peer struct{}
+type Peer interface{
+	Close() error
+	Consume() <- chan RPC
+}
