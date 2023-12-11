@@ -1,4 +1,5 @@
 package p2p
+
 import "errors"
 /*type Handshaker interface{
 	Handshake() error
